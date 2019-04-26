@@ -1,0 +1,699 @@
+Scrmacs -- это +текстовый редактор+ +конфигурация+ +дистрибутив+ +набор расширений+ штука для +текстового редактора+ +операционной системы+ среды исполнения Lisp программ GNU/Emacs... Чёрт.
+
+В общем, это моя штука для написания русскоязычной прозы, или другого текста. Если она понравилась вам, сделайте её вашей!
+
+Этот файл является литературной программой, однако пользовательская конфигурация вроде любимого шрифта или темы оформления может храниться и редактироваться отдельно(подробнее об этом ниже).
+
+
+Scrmacs предоставляется как есть, но вы можете использовать и видоизменять его
+исходный код так, как захотите, и распространять любое количество его копий в
+некоммерческих целях. Если у вас есть идеи о том, как можно улучшить проект, или
+насчёт функционала, который можно добавить, просто напишите об этом.
+
+Текущий копирайт проекта выглядит следующим образом:
+
+
+#+name: copyright
+#+begin_src emacs-lisp
+;; Copyright (C) 2019 Darth Null
+
+;; Author: Darth Null <clerwriting@gmail.com>
+;; URL: https://github.com/darthnull/scrmacs
+;; Version: 1.0.0
+;; Keywords: .emacs.d
+
+;; This file is not part of GNU Emacs.
+;;
+;; This program is free software; you can redistribute it and/or
+;; modify it under the terms of the GNU General Public License as
+;; published by the Free Software Foundation; either version 2, or
+;; (at your option) any later version.
+;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;; General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth
+;; Floor, Boston, MA 02110-1301, USA.
+;;
+
+;;; Commentary:
+;;
+;; Scrmacs Emacs configurations.
+;;
+
+;;; Code:
+
+#+end_src
+
+Если вы считаете, что тот или иной участок вашего кода неправомерно включён в
+Scrmacs, вы можете связаться со мной.
+
+* Дополнительные файлы и зависимости
+По-умолчанию scrmacs использует дополнительные файлы шрифтов.
+
+Они включают в себя:
+
+Шрифты all-the-icons(octicons, weathericons, material-design-icons, fontawesome,
+file-icons, all-the-icons).
+Семейство шрифтов Computer Modern в качестве основных.
+Шрифты Source Code Pro для оформления моноширинного текста.
+
+* Codestyle
+Для того, чтобы избежать возможных конфликтов с кодовой базой других расширений,
+дополнительные функции, не относящиеся к пакетам или стандартной поставке
+GNU/Emacs имеют префикс *-
+
+В качестве отступов используются пробелы.
+
+(setq-default indent-tabs-mode nil)
+
+* Инициализация
+
+  Данный файл является литературной программмой. Файл init.el не
+  является основным настроечным файлом, а лишь отвечает за загрузку
+  остальных участков кода.
+
+#+name: init.el
+#+begin_src emacs-lisp :tangle init.el :noweb yes
+;;; init.el --- Scrmacs configurations.	-*- lexical-binding: t; -*-
+<<copyright>>
+<<start-init>>
+<<core>>
+<<user-config>>
+#+end_src
+
+В первую очередь определим версию GNU/Emacs.
+
+На момент первой публикации Scrmacs версии 25.1 уже более двух с половиной лет,
+этого вполне достаточно.
+
+#+name: start-init
+#+begin_src emacs-lisp
+  (when (version< emacs-version "25.1")
+    (error "This requires Emacs 25.1 and above!"))
+#+end_src
+
+
+Определение более высокого порога для сборщика мусора -- довольно
+распространённый способ оптимизации GNU/Emacs. Переменная
+gc-cons-threshold отвечает за то,
+при достижении какого порога памяти сборщик мусора станет
+активным. Значение по-умолчанию -- 800Кб -- слишком маленькое.
+
+Многие просто ставят большое значение, однако если по каким-либо
+причинам даже довольно большой порог будет достигнут, собрка мусора
+займёт довольно долгое время. Смотрите [[http://bling.github.io/blog/2016/01/18/why-are-you-changing-gc-cons-threshold/][сообщение bling]] для более
+полной информации.
+
+Хорошим решением в данном случае будет установка высокого порога при
+запуске, с последующим возратом более низкого значения после.
+
+Я установил по-настоящему высокое(почти невозможное) значение в 1Gb
+при старте системе, и в два раза выше стандартного по-окончанию инициализации.
+
+Чтобы сборка мусора занимала ещё меньше времени и не вызывала
+простоев, я так же добавил активацию сборщика мусора в случаях, когда
+редактор находится в состоянии простоя больше 10 секунд
+
+#+name: start-init
+#+begin_src emacs-lisp
+  ;; Speed up initialization
+  (setq gc-cons-threshold (* 1024 1024 1024)) ;; 1Gb value
+  (add-hook 'emacs-startup-hook
+            (lambda ()
+                "2 * default value after init."
+                (setq file-name-handler-alist default-file-name-handler-alist)
+                (setq gc-cons-threshold (* 2 800000)) ;; Higher then default
+                (if (boundp 'after-focus-change-function)
+                    (add-function :after after-focus-change-function
+                                  (lambda ()
+                                    (unless (frame-focus-state)
+                                      (garbage-collect))))
+                  (add-hook 'focus-out-hook 'garbage-collect))))
+    (run-with-idle-timer 10 t (lambda () (garbage-collect)))
+#+end_src
+
+Так же я добавил отключение проверки имени файла(для ускорения
+загрузки) и отключил возможную загрузку старого байт-кода при наличии
+более нового исходного файла.
+
+#+name: start-init
+#+begin_src emacs-lisp
+(defvar default-file-name-handler-alist file-name-handler-alist)
+(setq file-name-handler-alist nil)
+(setq load-prefer-newer t)
+#+end_src
+
+* Основная конфигурация
+На этом моменте можно перейти к загрузке основной части конфигурации. Добавим
+каталог core в load-path и зададим настройки пакетного менеджера:
+
+#+name: core
+#+begin_src emacs-lisp
+(push (expand-file-name "core" user-emacs-directory) load-path)
+(require 'scrmacs-core)
+#+end_src
+
+#+name: core/scrmacs-core.el
+#+begin_src emacs-lisp :mkdirp yes :tangle core/scrmacs-core.el :noweb yes
+<<copyright>>
+<<defaults>>
+<<functions>>
+<<package-settings>>
+<<user-config>>
+<<package-init>>
+<<org>>
+<<scribe>>
+<<create>>
+<<redactor>>
+<<visual>>
+(provide 'scrmacs-core)
+#+end_src
+
+Обозначим некоторые значения по-умолчанию и перенесём custom-file в другое
+место. Так же здесь отключён стартовый экран, однако добавлен хук для
+его отображения, если в редакторе не открыт файл
+
+#+name: defaults
+#+begin_src emacs-lisp
+ (defun display-startup-echo-area-message () 
+  (message "Let the hacking begin!"))
+
+;; Don't use messages that you don't read
+(setq initial-scratch-message "")
+(setq inhibit-startup-message t)
+
+ (setq custom-file (expand-file-name "custom.el" user-emacs-directory) ; Custom file
+       auto-revert-interval 1            ; Refresh buffers fast
+       inhibit-startup-screen nil        ; No startup screen 
+       ring-bell-function 'ignore        ; Quiet
+       sentence-end-double-space nil)    ; No double space
+ (load custom-file :noerror)
+
+; Show startup screen if no opened files
+(defun *-splash-screen ()
+  "Open display-splash-screen instead of *scratch* buffer."
+  (when (and (string= "*scratch*" (buffer-name)) (not (buffer-file-name)))
+    (display-splash-screen)))
+(add-hook 'after-init-hook '*-splash-screen)
+
+; Backup settings 
+(setq backup-directory-alist `((".*" . ,temporary-file-directory))
+      auto-save-file-name-transforms `((".*" ,temporary-file-directory t))
+      create-lockfiles nil)
+; Open Emacs maximized
+(add-to-list 'default-frame-alist '(fullscreen . maximized))
+#+end_src
+
+Следующий участок кода добавляет репозитории для пакетов и
+инициализирует пакетный менеджер.
+
+#+name: package-settings
+#+begin_src emacs-lisp
+(setq package-archives
+  (let* ((no-ssl (and (memq system-type '(windows-nt ms-dos))
+                      (not(gnutls-available-p))))
+         (prefix (if no-ssl "http" "https")))
+
+          `(,(cons "ELPA"  (concat prefix "://tromey.com/elpa/"))
+            ,(cons "gnu"  (concat prefix "://elpa.gnu.org/packages/"))
+            ,(cons "melpa"  (concat prefix "://melpa.org/packages/"))
+            ,(cons "melpa-stable"  (concat prefix "://stable.melpa.org/packages/"))
+            ,(cons "marmalade"  (concat prefix "://marmalade-repo.org/packages/"))
+            ,(cons "org"   (concat prefix "://orgmode.org/elpa/")))))
+
+(print package-archives)
+  (require 'package)
+  (package-initialize)
+
+
+#+end_src
+
+
+Создадим функию, устанавливающую пакеты, если они не были установлены ранее.
+
+#+name: functions
+#+begin_src emacs-lisp
+(defun *-install-if-not (list)
+(let* ((package--builtins nil)
+       (packages list)
+  (ignore-errors
+    (let ((packages (remove-if 'package-installed-p packages)))
+      (when packages
+        ;; Install uninstalled packages
+        (package-refresh-contents)
+        (mapc 'package-install packages)))))
+))
+#+end_src
+
+** Используемые пакеты
+- org
+Основной пакет для работы с org-файлами(обычно есть по-умолчанию)
+
+- Focus https://github.com/larstvei/Focus
+Позволяет визуально выделять текущее предложение или абзац
+
+- Olivetti https://github.com/rnkn/olivetti
+Отвечает за формирование текста определённой ширины.
+
+
+- Zoom https://github.com/cyrus-and/zoom
+Позволяет автоматически регулировать размеры окон.
+
+- Typo https://github.com/jorgenschaefer/typoel
+Обеспечивает поддержку набора типографских символов
+
+- wc-mode https://github.com/bnbeckwith/wc-mode/blob/master/wc-mode.el
+Счётчик слов
+
+- powerline https://github.com/milkypostman/powerline
+Функциональная строка состояния
+
+- writeroom-mode https://github.com/joostkremers/writeroom-mode
+disctraction-free режим
+
+- reverse-im https://github.com/emacsmirror/reverse-im
+Обеспечивает работу кириллицы для сочетаний клавиш
+
+- org-bullets https://github.com/sabof/org-bullets
+Визуальное оформление заголовков org-mode
+Наконец, вызовем написанную ранее функцию со списком устанавливаемых пакетов.
+
+#+name: package-settings
+#+begin_src emacs-lisp
+(*-install-if-not
+   '(org 
+     zoom 
+     focus 
+     olivetti 
+     typo 
+     wc-mode 
+     powerline 
+     writeroom-mode 
+     reverse-im
+     poet-theme
+     org-bullets
+     ))
+#+end_src
+
+** Пользовательская конфигурация
+
+ Пользовательская конфигурация не предполагает компиляции в байт-код и
+ находится в каталоге ~/.emacs.d/config
+
+ По-умолчанию из этого каталога просто исполняются все .el файлы,
+ которые в нём находятся. 
+
+ Чтобы это было возможным, добавим несколько служебных функций: 
+
+ #+name: functions
+ #+begin_src emacs-lisp 
+ (defun *-remove-once(from &rest del)
+   "Delete first(only one) instance of each arg from list"
+   (let* ((from-zero (cons nil from))
+	  (delete-from from-zero) 
+	  (current (cdr from)) 
+	  (exclude del)
+	  (first nil))
+     (while (and current exclude)
+       (setq first (car current)) 
+       (if (not (member first exclude))
+	   (setq delete-from current)
+	 (setcdr delete-from (cdr current))
+	     (setq exclude (remove first exclude)))
+	       (setq current (cdr current)))
+     (cdr from-zero)))
+
+ (defun *-directory-files (directory &optional full match nosort)
+   "Like `directory-files', but excluding \".\" and \"..\"."
+   (let ((files (directory-files directory full match nosort)))
+     (*-remove-once files "." "..")))
+
+ (defun *-load-file-list (&rest list)
+   "Load list of .el files from dir."
+   (dolist (file list)
+     (when (file-exists-p file) (load file))))
+
+ (defun *-load-from-dir (prefix)  
+   "Load all .el files from user-emacs-directory/prefix"
+   (let* ((dir (concat user-emacs-directory prefix "/"))
+       (list-of-files (*-directory-files dir)))
+     (dolist (file list-of-files)
+	     (*-load-file-list (concat dir file)))))
+ #+end_src
+
+Функция *-remove-once оптимизирована для удаления элемента из списка,
+ если заведомо известно, что такой элемент только один. В общем случае,
+ она работает медленнее, чем встроенная функция delete(или remove),
+ поскольку delete написана на C. Однако она может принимать несколько
+ аргументов, чем длиннее список, и чем раньше искомый элемент находится
+ в нём, тем больше шанс получить плюс в производительности, даже не
+ смотря на разницу в скорости выполнения C и elisp
+
+ *-directory-files -- это несколько "исправленная" версия
+ directory-files, не включающая в конечный список . и ..
+
+ Наконец, *-load-file-list и  *-load-from-dir обеспечивают загрузку
+ всех .el файлов из списка или конкретной директории в ~/.emacs.d 
+
+ Всё, что остаётся сделать -- это вызвать функцию с нужным аргументом. 
+
+ #+name: user-config
+ #+begin_src emacs-lisp 
+ (*-load-from-dir "config")
+ #+end_src 
+
+ Предполагается, что пользовательская конфигурация загружается ДО того,
+ как будут инициализированы остальные пакеты. 
+
+ Активируем использование русской раскладки для хоткеев:
+#+name: package-init
+#+begin_src emacs-lisp 
+(require 'reverse-im)
+(reverse-im-activate "russian-computer")
+#+end_src
+
+
+
+#+name: config/hooks-config.el
+#+begin_src emacs-lisp :noweb yes :tangle config/hooks-config.el
+(setq theme: 'poet)
+(load-theme theme: t )
+(enable-theme 'poet)
+(setq olivetti-body-width 0.61)
+(add-hook 'text-mode-hook 'turn-on-olivetti-mode)
+(add-hook 'window-configuration-change-hook
+           (lambda ()
+             (if (delq nil
+                       (let ((fw (frame-width)))
+                         (mapcar (lambda(w) (< (window-width w) (/ fw 2)))
+                                 (window-list))))
+                 (olivetti-mode 0)
+               (when (derived-mode-p 'text-mode) (olivetti-mode 1)))))
+
+(cond ((member "Iosevka" (font-family-list))
+       (set-face-attribute 'fixed-pitch nil :font "Iosevka-12"))
+       ((member "Source Code Pro" (font-family-list))
+       (set-face-attribute 'fixed-pitch nil :font "Source Code Pro"))
+       ((member "Menlo" (font-family-list))
+       (set-face-attribute 'fixed-pitch nil :font "Menlo"))
+       ((member "Monaco" (font-family-list))
+       (set-face-attribute 'fixed-pitch nil :font "Monaco"))
+       ((member "DejaVu Sans Mono" (font-family-list))
+       (set-face-attribute 'fixed-pitch nil :font "DejaVu Sans Mono"))
+       ((member "Inconsolata" (font-family-list))
+       (set-face-attribute 'fixed-pitch nil :font "Inconsolata-14"))
+       ((member "Lucida Console" (font-family-list))
+       (set-face-attribute 'fixed-pitch nil :font "Lucida Console")))
+
+(cond ((member "CMU Sans Serif" (font-family-list))
+       (set-face-attribute 'default nil :font "CMU Sans Serif-14"))
+       ((member "Droid Sans" (font-family-list))
+       (set-face-attribute 'default nil :font "Droid Sans-14"))
+       ((member "Dejavu Sans" (font-family-list))
+       (set-face-attribute 'default nil :font "Dejavu Sans-14"))
+       ((member "Arial" (font-family-list))
+       (set-face-attribute 'default nil :font "Arial-12")))
+
+(when (char-displayable-p ?➤)
+(setq org-ellipsis " ➤ "))
+
+
+(defun rc/set-var (var value)
+  "Return custom-set-variable with single quote at 1st arg"
+  `(customize-set-variable ',var, value))
+
+
+(defmacro rc/set-var-list ()
+  "progn for custom-set-variable from custom-variables list"
+  `(progn ,@(mapcar
+             (lambda (x) (rc/set-var (car x) (cdr x) ))
+             custom-variables)))
+
+(setq custom-variables '(
+;; Disable menu-bar
+(menu-bar-mode . nil)
+;; Disable cursor blinking			 
+(blink-cursor-mode . nil)
+;; Enable column lines
+(column-number-mode . t)
+;; Enable C-c, C-v copy-paste
+(cua-mode . t)
+;; Disable scrollbar
+(scroll-bar-mode . nil)
+;; Disable toolbar
+(tool-bar-mode . nil)
+))
+(rc/set-var-list)
+;; highlight current line
+(global-hl-line-mode 1)
+
+;; File
+(define-key global-map [menu-bar file revert-buffer] nil)
+(define-key global-map [menu-bar file dired] nil)
+(define-key global-map [menu-bar file insert-file] nil)
+(define-key global-map [menu-bar file recover-session] nil)
+(define-key global-map [menu-bar file print-buffer]
+   '(menu-item "Print" print-buffer
+                  :enable (menu-bar-menu-frame-live-and-visible-p)
+                  :help "Print current buffer with page headings")
+  )
+(define-key global-map [menu-bar file print-region] nil)
+(define-key global-map [menu-bar file ps-print-buffer-faces] nil)
+(define-key global-map [menu-bar file ps-print-buffer] nil)
+(define-key global-map [menu-bar file ps-print-region] nil)
+(define-key global-map [menu-bar file ps-print-region-faces] nil)
+(define-key global-map [menu-bar file separator-window] nil)
+(define-key global-map [menu-bar file new-window-below] nil)
+(define-key global-map [menu-bar file new-window-on-right] nil)
+(define-key global-map [menu-bar file one-window] nil)
+
+(define-key global-map [menu-bar file separator-frame] nil)
+(define-key global-map [menu-bar file make-frame] nil)
+(define-key global-map [menu-bar file make-frame-on-display] nil)
+(define-key global-map [menu-bar file delete-this-frame] nil)
+
+;; Edit
+(define-key global-map [menu-bar edit search]    `(menu-item "Search" ,menu-bar-i-search-menu))
+(define-key global-map [menu-bar edit search isearch-backward-regexp]    nil)
+(define-key global-map [menu-bar edit search isearch-forward-regexp]    nil)
+(define-key global-map [menu-bar edit search isearch-forward]
+ '(menu-item "Search Forward" isearch-forward
+        :help "Search forward for a string as you type it"))
+(define-key global-map [menu-bar edit search isearch-backward]
+   '(menu-item "Search Backward" isearch-backward
+        :help "Search backwards for a string as you type it"))
+(define-key global-map [menu-bar options search-options] nil)
+(define-key global-map [menu-bar edit search search-options]
+ `(menu-item "Default Search Options"
+		  ,menu-bar-search-options-menu)
+  )
+(define-key global-map [menu-bar edit goto go-to-pos] nil)
+(define-key global-map [menu-bar edit goto beg-of-buf] nil)
+(define-key global-map [menu-bar edit goto end-of-buf] nil)
+
+;; Options
+(define-key global-map [menu-bar options blink-cursor-mode] nil)
+(define-key global-map [menu-bar options debug-on-error] nil)
+(define-key global-map [menu-bar options debug-on-quit] nil)
+(define-key global-map [menu-bar options transient-mark-mode] nil)
+(define-key global-map [menu-bar options debugger-separator] nil)
+(define-key global-map [menu-bar options showhide showhide-window-divider] nil)
+(define-key global-map [menu-bar options showhide showhide-date-time] nil)
+(define-key global-map [menu-bar options showhide showhide-battery] nil)
+(define-key global-map [menu-bar options showhide datetime-separator] nil)
+(define-key global-map [menu-bar options showhide size-indication-mode] nil)
+(define-key global-map [menu-bar options showhide showhide-speedbar] nil)
+(define-key global-map [menu-bar options mule] nil)
+(define-key global-map [menu-bar options mule-separator] nil)
+
+;; Scroll faster
+
+(setq jit-lock-defer-time 0)
+(setq fast-but-imprecise-scrolling t)
+
+;; Org-mode options
+
+;; Export to .odt and .doc
+(setq org-odt-preferred-output-format "doc")
+(setq org-odt-convert-processes
+                  '(("LibreOffice" 
+"\"c:\\Program Files\\LibreOffice\\program\\soffice.exe\" --headless --convert-to  %f%x  %i")))
+;; Org-bullets
+(setq org-bullets-bullet-list '("✜" "✑" "✒" "✏" ))
+(require 'org-bullets)
+
+(with-eval-after-load 'org
+  (defvar-local rc/org-at-src-begin -1
+    "Variable that holds whether last position was a ")
+
+  (defvar rc/ob-header-symbol ?☰
+    "Symbol used for babel headers")
+
+  (defun rc/org-prettify-src--update ()
+    (let ((case-fold-search t)
+          (re "^[ \t]*#\\+begin_src[ \t]+[^ \f\t\n\r\v]+[ \t]*")
+          found)
+      (save-excursion
+        (goto-char (point-min))
+        (while (re-search-forward re nil t)
+          (goto-char (match-end 0))
+          (let ((args (org-trim
+                       (buffer-substring-no-properties (point)
+                                                       (line-end-position)))))
+            (when (org-string-nw-p args)
+              (let ((new-cell (cons args rc/ob-header-symbol)))
+                (cl-pushnew new-cell prettify-symbols-alist :test #'equal)
+                (cl-pushnew new-cell found :test #'equal)))))
+        (setq prettify-symbols-alist
+              (cl-set-difference prettify-symbols-alist
+                                 (cl-set-difference
+                                  (cl-remove-if-not
+                                   (lambda (elm)
+                                     (eq (cdr elm) rc/ob-header-symbol))
+                                   prettify-symbols-alist)
+                                  found :test #'equal)))
+        ;; Clean up old font-lock-keywords.
+        (font-lock-remove-keywords nil prettify-symbols--keywords)
+        (setq prettify-symbols--keywords (prettify-symbols--make-keywords))
+        (font-lock-add-keywords nil prettify-symbols--keywords)
+        (while (re-search-forward re nil t)
+          (font-lock-flush (line-beginning-position) (line-end-position))))))
+
+  (defun rc/org-prettify-src ()
+    "Hide src options via `prettify-symbols-mode'.
+
+  `prettify-symbols-mode' is used because it has uncollpasing. It's
+  may not be efficient."
+    (let* ((case-fold-search t)
+           (at-src-block (save-excursion
+                           (beginning-of-line)
+                           (looking-at "^[ \t]*#\\+begin_src[ \t]+[^ \f\t\n\r\v]+[ \t]*"))))
+      ;; Test if we moved out of a block.
+      (when (or (and rc/org-at-src-begin
+                     (not at-src-block))
+                ;; File was just opened.
+                (eq rc/org-at-src-begin -1))
+        (rc/org-prettify-src--update))
+      ;; Remove composition if at line; doesn't work properly.
+      ;; (when at-src-block
+      ;;   (with-silent-modifications
+      ;;     (remove-text-properties (match-end 0)
+      ;;                             (1+ (line-end-position))
+      ;;                             '(composition))))
+      (setq rc/org-at-src-begin at-src-block)))
+
+  (defun rc/org-prettify-symbols ()
+    (mapc (apply-partially 'add-to-list 'prettify-symbols-alist)
+          (cl-reduce 'append
+                     (mapcar (lambda (x) (list x (cons (upcase (car x)) (cdr x))))
+                             `(("#+begin_src" . ?✎) ;;  
+                               ("#+end_src"   .?✎) ;; 
+                               ("#+header:" . ,rc/ob-header-symbol)
+                               ("#+begin_quote" . ?»)
+                               ("#+end_quote" . ?«)))))
+    (turn-on-prettify-symbols-mode)
+    (add-hook 'post-command-hook 'rc/org-prettify-src t t))
+ (add-hook 'org-mode-hook #'rc/org-prettify-symbols))
+
+;; Org-mode spec
+(add-hook 'org-mode-hook (lambda ()
+			   (rc/org-prettify-symbols)
+			   (auto-fill-mode 0)
+			   (toggle-truncate-lines 0)
+			  ;; (hidden-mode-line-mode t)
+			   (visual-line-mode t)
+			    (org-bullets-mode 1)))
+
+;; Modeline
+(setq wc-modeline-format " [ Words: %tw,  Chars:  %tc] ")
+(defun powerline-current-separator ()
+  "Get the current default separator. Always returns utf-8 in non-gui mode."
+  powerline-default-separator 'arrow)
+(add-hook 'wc-mode-hook #'wc-mode-update)
+
+(defun powerline-cler-theme ()
+  "Setup a mode-line with major and minor modes centered."
+  (interactive)
+  (setq mode-line-format
+		'("%e"
+		  (:eval
+		   (let* ((active (powerline-selected-window-active))
+                          (mode-line-buffer-id (if active 'mode-line-buffer-id 'mode-line-buffer-id-inactive))
+			  (mode-line (if active 'mode-line 'mode-line-inactive))
+			  (face1 (if active 'powerline-active1 'powerline-inactive1))
+			  (face2 (if active 'powerline-active2 'powerline-inactive2))
+			  (separator-left (intern (format "powerline-%s-%s"
+							  (powerline-current-separator)
+							  (car powerline-default-separator-dir))))
+			  (separator-right (intern (format "powerline-%s-%s"
+							   (powerline-current-separator)
+							   (cdr powerline-default-separator-dir))))
+			  (lhs (list (powerline-raw "%*" mode-line 'l)
+				     (powerline-buffer-size mode-line 'l)
+				     (powerline-buffer-id mode-line-buffer-id 'l)
+				     (powerline-raw " ")
+				     (funcall separator-left mode-line face1)
+				    ;; (powerline-narrow face1 'l)
+				 ;    (powerline-vc face1)
+				     ))
+			  (rhs (list
+				     (funcall separator-right face1 mode-line)
+				     (powerline-raw " ")
+				     (powerline-major-mode 'l)
+				     (powerline-raw " ")
+				     (powerline-raw "%4l" 'r)
+				     (powerline-raw ":")
+				     (powerline-raw "%3c" 'r)
+				     (powerline-raw "  ")
+				     (powerline-raw "%6p" mode-line 'r)))
+			  (center (list 
+				   (funcall separator-left face1 mode-line)
+				   (powerline-raw " ")
+	    (if wc-mode
+        (propertize (wc-format-modeline-string  " [ Слова: %tw,  Символы:  %tc] ")
+                    'face '(:weight bold)))
+				   (powerline-raw " ")
+				   (funcall separator-right mode-line face1))))
+		     (concat (powerline-render lhs)
+			     (powerline-fill-center face1 (/ (powerline-width center) 2.0))
+			     (powerline-render center)
+			     (powerline-fill face1 (powerline-width rhs))
+			     (powerline-render rhs)))))))
+
+(powerline-cler-theme)
+
+
+#+end_src
+
+
+ https://github.com/cadadr/elisp
+
+ (defun rc/lit-code-block-elisp ()
+   "Insert code block "
+   (interactive)
+   (let ((name (read-from-minibuffer "Enter source name:")))
+   (insert (format "#+name: %s\n" name))
+   (insert (format "#+begin_src emacs-lisp  :mkdirp yes :noweb yes :tangle %s\n\n" name))
+   (insert "#+end_src")
+   (previous-line)))
+
+ (global-set-key (kbd "M-]") 'rc/lit-code-block-elisp)
+
+
+ (defun rc/code-block-elisp ()
+   "Insert code block "
+   (interactive)
+   (let ((name (read-from-minibuffer "Enter source name: ")))
+   (insert (format "#+name: %s\n" name))
+   (insert (format "#+begin_src emacs-lisp \n\n"))
+   (insert "#+end_src")
+   (previous-line)))
+ (global-set-key (kbd "M-[") 'rc/code-block-elisp)
+
+ (setq olivetti-body-width 0.61)
+ 
