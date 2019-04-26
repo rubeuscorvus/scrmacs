@@ -380,7 +380,7 @@ disctraction-free режим
 
 
 #+name: config/hooks-config.el
-#+begin_src emacs-lisp :noweb yes :tangle config/hooks-config.el
+#+begin_src emacs-lisp :noweb yes  :mkdirp yes :tangle config/hooks-config.el
 (setq theme: 'poet)
 (load-theme theme: t )
 (enable-theme 'poet)
