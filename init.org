@@ -238,6 +238,9 @@ gc-cons-threshold отвечает за то,
 
 #+name: functions
 #+begin_src emacs-lisp
+(when (not (fboundp 'remove-if)) 
+(defalias 'remove-if 'cl-remove-if))
+
 (defun *-install-if-not (list)
 (let* ((package--builtins nil)
        (packages list)
@@ -418,6 +421,12 @@ disctraction-free режим
        (set-face-attribute 'default nil :font "Dejavu Sans-14"))
        ((member "Arial" (font-family-list))
        (set-face-attribute 'default nil :font "Arial-12")))
+
+  (cond
+   ((member "Unifont" (font-family-list))
+    (set-fontset-font t 'unicode "Unifont" nil 'prepend))
+   ((member "Symbola" (font-family-list))
+    (set-fontset-font t 'unicode "Symbola" nil 'prepend)))
 
 (when (char-displayable-p ?➤)
 (setq org-ellipsis " ➤ "))
