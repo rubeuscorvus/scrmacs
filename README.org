@@ -1,0 +1,16 @@
+* Scrmacs
+
+Scrmacs is GNU/Emacs distributive for writing russian-language prose. Scrmacs is [[https://en.wikipedia.org/wiki/Literate_programming][literating program]] and written using emacs [[https://orgmode.org/][org-mode]], but only Russian variant of literate source available now. It's on development now, so, see you later. 
+
+* Getting Started
+** Prerequisites
+You need GNU/Emacs 25.1 or higher for running this. 
+** Installation
+* Usage
+* License
+* Release History 
+* Authors
+** Contact
+** Acknowledgements
+** Contributing
+
