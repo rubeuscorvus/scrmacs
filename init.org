@@ -1,9 +1,8 @@
 Scrmacs -- это +текстовый редактор+ +конфигурация+ +дистрибутив+ +набор расширений+ штука для +текстового редактора+ +операционной системы+ среды исполнения Lisp программ GNU/Emacs... Чёрт.
 
-В общем, это моя штука для написания русскоязычной прозы, или другого текста. Если она понравилась вам, сделайте её вашей!
+В общем, это моя штука для написания русскоязычной прозы, или другого текста. Но мне хотелось бы, чтобы другие люди тоже могли использовать её, даже те, кто пробует GNU/Emacs впервые. Многие вещи здесь реализованы с учётом такой возможности. Если Scrmacs понравился вам, сделайте его вашим!
 
-Этот файл является литературной программой, однако пользовательская конфигурация вроде любимого шрифта или темы оформления может храниться и редактироваться отдельно(подробнее об этом ниже).
-
+Этот файл является литературной программой, однако пользовательская конфигурация вроде любимого шрифта или темы оформления может храниться и редактироваться отдельно(подробнее об этом см. раздел "Пользовательские настройки").
 
 Scrmacs предоставляется как есть, но вы можете использовать и видоизменять его
 исходный код так, как захотите, и распространять любое количество его копий в
@@ -51,7 +50,6 @@ Scrmacs предоставляется как есть, но вы можете �
 
 Если вы считаете, что тот или иной участок вашего кода неправомерно включён в
 Scrmacs, вы можете связаться со мной.
-
 * Дополнительные файлы и зависимости
 По-умолчанию scrmacs использует дополнительные файлы шрифтов.
 
@@ -174,84 +172,105 @@ gc-cons-threshold отвечает за то,
 (provide 'scrmacs-core)
 #+end_src
 
-Обозначим некоторые значения по-умолчанию и перенесём custom-file в другое
-место. Так же здесь отключён стартовый экран, однако добавлен хук для
-его отображения, если в редакторе не открыт файл
+** Базовые настройки
+
+В этом разделе описываются некоторые особенности Emacs по-умолчанию, которые скорее вредны, чем полезны. 
+
+*** DONE custom-file перенесён в ~/.emacs.d/custom.el
+
+Emacs использует Customize для своих настроек, в то время как опытные пользователи предпочитают настраивать напрямую через Elisp. Если основная конфигурация осуществляется через elisp, без использования графического интерфейска для настройки, в функционале customize нет никакой необходимости. 
+
+Проблема в том, что ряд расширений так же могут использовать его. Однако чтобы его содержимое, которое, к тому же, не рекомендуется менять вручную, не захламляло основную конфигурацию, многие пользователи Emacs предпочитают переносить это в отдельный файл. 
+
+*** DONE Буфер обновляется каждую секунду на тот случай, если файл был изменён в другой программе. 
+*** DONE Отключены раздражающие звуки. 
+*** DONE Отключение двойных пробелов в конце предложения
+  В некоторых зарубежных типографских соглашениях принято использовать два пробела. Для русского в этом нет необходимости. 
+
+  #+name: defaults
+  #+begin_src emacs-lisp
+  ;; Don't use messages that you don't read
+  (setq initial-scratch-message "")
+  (setq inhibit-startup-message t)
+
+   (setq custom-file (expand-file-name "custom.el" user-emacs-directory) ; Custom file
+	 auto-revert-interval 1            ; Refresh buffers fast
+	 inhibit-startup-screen nil        ; No startup screen 
+	 ring-bell-function 'ignore        ; Quiet
+	 sentence-end-double-space nil)    ; No double space
+   (load custom-file :noerror)
+  #+end_src
+
+*** Отображение стартового экрана
+
+Стартовый экран в emacs не очень-то необходим, однако из него можно сделать что-то действительно полезное(см. раздел "Стартовый экран").
+
+Однако при открытии файла при включённом отображении стартового экрана, emacs уродливо делит окно по вертикали. Очевидно, такого поведения быть не должно. Следующий хак исправляет эту особенность:
 
 #+name: defaults
-#+begin_src emacs-lisp
- (defun display-startup-echo-area-message () 
-  (message "Let the hacking begin!"))
+  #+begin_src emacs-lisp
+  ; Show startup screen if no opened files
+  (defun *-splash-screen ()
+    "Open display-splash-screen instead of *scratch* buffer."
+    (when (and (string= "*scratch*" (buffer-name)) (not (buffer-file-name)))
+      (display-splash-screen)))
+  (add-hook 'after-init-hook '*-splash-screen)
 
-;; Don't use messages that you don't read
-(setq initial-scratch-message "")
-(setq inhibit-startup-message t)
-
- (setq custom-file (expand-file-name "custom.el" user-emacs-directory) ; Custom file
-       auto-revert-interval 1            ; Refresh buffers fast
-       inhibit-startup-screen nil        ; No startup screen 
-       ring-bell-function 'ignore        ; Quiet
-       sentence-end-double-space nil)    ; No double space
- (load custom-file :noerror)
-
-; Show startup screen if no opened files
-(defun *-splash-screen ()
-  "Open display-splash-screen instead of *scratch* buffer."
-  (when (and (string= "*scratch*" (buffer-name)) (not (buffer-file-name)))
-    (display-splash-screen)))
-(add-hook 'after-init-hook '*-splash-screen)
-
-; Backup settings 
-(setq backup-directory-alist `((".*" . ,temporary-file-directory))
-      auto-save-file-name-transforms `((".*" ,temporary-file-directory t))
-      create-lockfiles nil)
-; Open Emacs maximized
-(add-to-list 'default-frame-alist '(fullscreen . maximized))
-#+end_src
-
-Следующий участок кода добавляет репозитории для пакетов и
-инициализирует пакетный менеджер.
-
-#+name: package-settings
-#+begin_src emacs-lisp
-(setq package-archives
-  (let* ((no-ssl (and (memq system-type '(windows-nt ms-dos))
-                      (not(gnutls-available-p))))
-         (prefix (if no-ssl "http" "https")))
-
-          `(,(cons "ELPA"  (concat prefix "://tromey.com/elpa/"))
-            ,(cons "gnu"  (concat prefix "://elpa.gnu.org/packages/"))
-            ,(cons "melpa"  (concat prefix "://melpa.org/packages/"))
-            ,(cons "melpa-stable"  (concat prefix "://stable.melpa.org/packages/"))
-            ,(cons "marmalade"  (concat prefix "://marmalade-repo.org/packages/"))
-            ,(cons "org"   (concat prefix "://orgmode.org/elpa/")))))
-
-(print package-archives)
-  (require 'package)
-  (package-initialize)
+  #+end_src
 
 
-#+end_src
+
+#+name: defaults
+  #+begin_src emacs-lisp
+  ; Backup settings 
+  (setq backup-directory-alist `((".*" . ,temporary-file-directory))
+	auto-save-file-name-transforms `((".*" ,temporary-file-directory t))
+	create-lockfiles nil)
+  ; Open Emacs maximized
+  (add-to-list 'default-frame-alist '(fullscreen . maximized))
+  #+end_src
 
 
-Создадим функию, устанавливающую пакеты, если они не были установлены ранее.
+  Следующий участок кода добавляет репозитории для пакетов и
+  инициализирует пакетный менеджер.
 
-#+name: functions
-#+begin_src emacs-lisp
-(when (not (fboundp 'remove-if)) 
-(defalias 'remove-if 'cl-remove-if))
+  #+name: package-settings
+  #+begin_src emacs-lisp
+  (setq package-archives
+    (let* ((no-ssl (and (memq system-type '(windows-nt ms-dos))
+			(not(gnutls-available-p))))
+           (prefix (if no-ssl "http" "https")))
 
-(defun *-install-if-not (list)
-(let* ((package--builtins nil)
-       (packages list)
-  (ignore-errors
-    (let ((packages (remove-if 'package-installed-p packages)))
-      (when packages
-        ;; Install uninstalled packages
-        (package-refresh-contents)
-        (mapc 'package-install packages)))))
-))
-#+end_src
+            `(,(cons "ELPA"  (concat prefix "://tromey.com/elpa/"))
+              ,(cons "gnu"  (concat prefix "://elpa.gnu.org/packages/"))
+              ,(cons "melpa"  (concat prefix "://melpa.org/packages/"))
+              ,(cons "melpa-stable"  (concat prefix "://stable.melpa.org/packages/"))
+              ,(cons "marmalade"  (concat prefix "://marmalade-repo.org/packages/"))
+              ,(cons "org"   (concat prefix "://orgmode.org/elpa/")))))
+
+  (print package-archives)
+    (require 'package)
+    (package-initialize)
+
+
+  #+end_src
+
+
+  Создадим функию, устанавливающую пакеты, если они не были установлены ранее.
+
+  #+name: functions
+  #+begin_src emacs-lisp
+  (defun *-install-if-not (list)
+  (let* ((package--builtins nil)
+	 (packages list)
+    (ignore-errors
+      (let ((packages (remove-if 'package-installed-p packages)))
+	(when packages
+          ;; Install uninstalled packages
+          (package-refresh-contents)
+          (mapc 'package-install packages)))))
+  ))
+  #+end_src
 
 ** Используемые пакеты
 - org
@@ -380,6 +399,12 @@ disctraction-free режим
 (reverse-im-activate "russian-computer")
 #+end_src
 
+Включение файлов для центровки текста и org-bullets
+#+name: package-init
+#+begin_src emacs-lisp 
+(require 'org-bullets)
+#+end_src
+
 
 
 #+name: config/hooks-config.el
@@ -388,7 +413,9 @@ disctraction-free режим
 (load-theme theme: t )
 (enable-theme 'poet)
 (setq olivetti-body-width 0.61)
-(add-hook 'text-mode-hook 'turn-on-olivetti-mode)
+(add-hook 'text-mode-hook (lambda ()
+(olivetti-mode 1)
+))
 (add-hook 'window-configuration-change-hook
            (lambda ()
              (if (delq nil
@@ -427,7 +454,6 @@ disctraction-free режим
     (set-fontset-font t 'unicode "Unifont" nil 'prepend))
    ((member "Symbola" (font-family-list))
     (set-fontset-font t 'unicode "Symbola" nil 'prepend)))
-
 (when (char-displayable-p ?➤)
 (setq org-ellipsis " ➤ "))
 
@@ -534,7 +560,6 @@ disctraction-free режим
 "\"c:\\Program Files\\LibreOffice\\program\\soffice.exe\" --headless --convert-to  %f%x  %i")))
 ;; Org-bullets
 (setq org-bullets-bullet-list '("✜" "✑" "✒" "✏" ))
-(require 'org-bullets)
 
 (with-eval-after-load 'org
   (defvar-local rc/org-at-src-begin -1
