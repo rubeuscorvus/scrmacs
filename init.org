@@ -264,7 +264,7 @@ Emacs использует Customize для своих настроек, в то
   (let* ((package--builtins nil)
 	 (packages list)
     (ignore-errors
-      (let ((packages (remove-if 'package-installed-p packages)))
+      (let ((packages (cl-remove-if 'package-installed-p packages)))
 	(when packages
           ;; Install uninstalled packages
           (package-refresh-contents)
@@ -308,8 +308,7 @@ disctraction-free режим
 #+name: package-settings
 #+begin_src emacs-lisp
 (*-install-if-not
-   '(org 
-     zoom 
+   '(zoom 
      focus 
      olivetti 
      typo 
@@ -370,14 +369,12 @@ disctraction-free режим
 
 Функция *-remove-once оптимизирована для удаления элемента из списка,
  если заведомо известно, что такой элемент только один. В общем случае,
- она работает медленнее, чем встроенная функция delete(или remove),
- поскольку delete написана на C. Однако она может принимать несколько
- аргументов, чем длиннее список, и чем раньше искомый элемент находится
- в нём, тем больше шанс получить плюс в производительности, даже не
- смотря на разницу в скорости выполнения C и elisp
+ она работает медленнее, чем встроенная функция delete(или remove),  поскольку delete написана на C. Однако в ряде специфических случаев(в том числе для изменения directory-files) она может давать прирост производительности. 
+
+Более того, чем длиннее список, тем более заметным будет улучшение. 
 
  *-directory-files -- это несколько "исправленная" версия
- directory-files, не включающая в конечный список . и ..
+встроенной функции  directory-files, не включающая в конечный список . и ..
 
  Наконец, *-load-file-list и  *-load-from-dir обеспечивают загрузку
  всех .el файлов из списка или конкретной директории в ~/.emacs.d 
@@ -399,11 +396,44 @@ disctraction-free режим
 (reverse-im-activate "russian-computer")
 #+end_src
 
-Включение файлов для центровки текста и org-bullets
-#+name: package-init
+
+** Настройки org-mode
+
+*** Визуальные настройки
+Для визуального оформления org-mode часто могут понадобиться дополнительные символы юникода. Которые, однако, могут не отображаться по каким-либо причинам, вроде отсутствия их поддержки в выбранном шрифте или в альтернативной кодировке, такой, как KOI8-r. Я не пользуюсь кодировками, отличными от UTF-8, но буду благодарен за патчи для их лучшей поддержки, если их используете вы. 
+
+Добавим функцию, способную заменять определённые символы в случае, если их нельзя отобразить. 
+
+#+name: functions
+#+begin_src emacs-lisp 
+(defun *-char-fallback (char fallback)
+"Return string with charaster when it's displayable, and some fallback char if not"
+(if 
+(fontp (char-displayable-p (string-to-char char)))  
+char 
+fallback))
+
+#+end_src
+
+Визуальный индикатор сворачивания заголовков изменяется с помощью переменной org-ellipsis и одноимённого шрифта. 
+
+В некоторых цветовых схемах для него может использоваться подчёркивание или отдельный цвет, отключим это. 
+
+#+name: org
+#+begin_src emacs-lisp 
+(setq org-ellipsis (concat " " (*-char-fallback "▾" "...")))
+(set-face-attribute 'org-ellipsis nil :underline nil :foreground nil)
+#+end_src
+
+Изменять символы для разного уровня заголовков можно с помощью пакета org-bullets. 
+
+#+name: org
 #+begin_src emacs-lisp 
 (require 'org-bullets)
+;; Org-bullets
+(setq org-bullets-bullet-list (list (*-char-fallback "▣" "-")  (*-char-fallback  "▢" "–")  (*-char-fallback   "◉" "—")))
 #+end_src
+
 
 
 
@@ -425,8 +455,11 @@ disctraction-free режим
                  (olivetti-mode 0)
                (when (derived-mode-p 'text-mode) (olivetti-mode 1)))))
 
+(set-fontset-font "fontset-default" nil 
+                  (font-spec :size 20 :name "Symbola"))
+
 (cond ((member "Iosevka" (font-family-list))
-       (set-face-attribute 'fixed-pitch nil :font "Iosevka-12"))
+       (set-face-attribute 'fixed-pitch nil :font "Iosevka-14"))
        ((member "Source Code Pro" (font-family-list))
        (set-face-attribute 'fixed-pitch nil :font "Source Code Pro"))
        ((member "Menlo" (font-family-list))
@@ -436,28 +469,25 @@ disctraction-free режим
        ((member "DejaVu Sans Mono" (font-family-list))
        (set-face-attribute 'fixed-pitch nil :font "DejaVu Sans Mono"))
        ((member "Inconsolata" (font-family-list))
-       (set-face-attribute 'fixed-pitch nil :font "Inconsolata-14"))
+       (set-face-attribute 'fixed-pitch nil :font "Inconsolata-24"))
        ((member "Lucida Console" (font-family-list))
        (set-face-attribute 'fixed-pitch nil :font "Lucida Console")))
 
 (cond ((member "CMU Sans Serif" (font-family-list))
-       (set-face-attribute 'default nil :font "CMU Sans Serif-14"))
+       (set-face-attribute 'default nil :font "CMU Sans Serif-14" :slant 'normal))
        ((member "Droid Sans" (font-family-list))
        (set-face-attribute 'default nil :font "Droid Sans-14"))
        ((member "Dejavu Sans" (font-family-list))
-       (set-face-attribute 'default nil :font "Dejavu Sans-14"))
+       (set-face-attribute 'default nil :font "Dejavu Sans-14" :slant 'normal))
        ((member "Arial" (font-family-list))
        (set-face-attribute 'default nil :font "Arial-12")))
 
-  (cond
-   ((member "Unifont" (font-family-list))
-    (set-fontset-font t 'unicode "Unifont" nil 'prepend))
-   ((member "Symbola" (font-family-list))
-    (set-fontset-font t 'unicode "Symbola" nil 'prepend)))
-(when (char-displayable-p ?➤)
-(setq org-ellipsis " ➤ "))
-
-
+(when (member "Symbola" (font-family-list))
+(set-fontset-font "fontset-default"
+                  (cons (decode-char 'ucs #x25A0)
+                        (decode-char 'ucs #x27B0))
+                  (font-spec  :name "Symbola")))
+ 
 (defun rc/set-var (var value)
   "Return custom-set-variable with single quote at 1st arg"
   `(customize-set-variable ',var, value))
@@ -558,8 +588,6 @@ disctraction-free режим
 (setq org-odt-convert-processes
                   '(("LibreOffice" 
 "\"c:\\Program Files\\LibreOffice\\program\\soffice.exe\" --headless --convert-to  %f%x  %i")))
-;; Org-bullets
-(setq org-bullets-bullet-list '("✜" "✑" "✒" "✏" ))
 
 (with-eval-after-load 'org
   (defvar-local rc/org-at-src-begin -1
@@ -625,11 +653,11 @@ disctraction-free режим
     (mapc (apply-partially 'add-to-list 'prettify-symbols-alist)
           (cl-reduce 'append
                      (mapcar (lambda (x) (list x (cons (upcase (car x)) (cdr x))))
-                             `(("#+begin_src" . ?✎) ;;  
-                               ("#+end_src"   .?✎) ;; 
+                             `(("#+begin_src" . ?⛶) ;;  
+                               ("#+end_src"   .?⛶) ;; 
                                ("#+header:" . ,rc/ob-header-symbol)
-                               ("#+begin_quote" . ?»)
-                               ("#+end_quote" . ?«)))))
+                               ("#+begin_quote" . ?❝)
+                               ("#+end_quote" . ?❞)))))
     (turn-on-prettify-symbols-mode)
     (add-hook 'post-command-hook 'rc/org-prettify-src t t))
  (add-hook 'org-mode-hook #'rc/org-prettify-symbols))
@@ -703,7 +731,6 @@ disctraction-free режим
 
 
 #+end_src
-
 
  https://github.com/cadadr/elisp
 
